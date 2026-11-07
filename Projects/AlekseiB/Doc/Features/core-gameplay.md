@@ -47,6 +47,17 @@ tools and all visuals are procedural placeholder art that can be replaced file b
 - Result overlay: shown on level end with the title, stars, score and NEXT LEVEL / RESTART
   buttons. The overlay renders above the HUD.
 
+## Scene loading
+
+- Runtime code switches scenes through `Infrastructure.SceneManager` and the generated
+  `SceneName` enum: `SceneManager.Load(SceneName.Level_02)` or
+  `SceneManager.LoadAsync(SceneName.Level_02)`.
+- Every transition goes through the generated `Loader` scene. It is loaded additively,
+  shows a progress bar while the target scene streams in, and is unloaded automatically
+  when the target scene activates.
+- The enum is generated from `Assets/AngryBirds/Scenes`; regenerate it with
+  `Tools/AngryBirds/3. Generate Scene Names` after adding a scene.
+
 ## Content pipeline
 
 - `Tools/AngryBirds/1. Generate Placeholder Art` — writes the procedural sprite set

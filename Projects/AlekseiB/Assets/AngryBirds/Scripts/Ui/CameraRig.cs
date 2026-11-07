@@ -18,7 +18,7 @@ namespace AngryBirds.Ui
         [SerializeField, Min(0f)] private float flightZoomOut = 0.8f;
         [SerializeField, Min(0.1f)] private float zoomSharpness = 2.5f;
 
-        private Camera _camera;
+        [SerializeField] private Camera _camera;
         private LevelRuntime _runtime;
         private LevelDefinition _level;
         private Transform _target;
@@ -30,7 +30,6 @@ namespace AngryBirds.Ui
 
         private void Awake()
         {
-            _camera = GetComponent<Camera>();
             _baseSize = _camera.orthographicSize;
             _targetSize = _baseSize;
         }

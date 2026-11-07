@@ -4,8 +4,9 @@ using AngryBirds.Core.Gameplay;
 using AngryBirds.Core.Level;
 using AngryBirds.Infrastructure.Input;
 using AngryBirds.Ui;
+using UnitySceneManager = UnityEngine.SceneManagement.SceneManager;
 
-namespace AngryBirds.Infrastructure.Bootstrap
+namespace AngryBirds.Infrastructure
 {
     /// <summary>
     /// Composition root of a level scene.
@@ -15,7 +16,7 @@ namespace AngryBirds.Infrastructure.Bootstrap
     /// </summary>
     [DefaultExecutionOrder(-100)]
     [DisallowMultipleComponent]
-    public sealed class GameBootstrap : MonoBehaviour
+    public sealed class LevelBootstrap : MonoBehaviour
     {
         [Header("Wiring")]
         [SerializeField] private GameInput input;
@@ -197,7 +198,7 @@ namespace AngryBirds.Infrastructure.Bootstrap
                 return;
             }
 
-            SceneManager.LoadScene(sceneName);
+            UnitySceneManager.LoadScene(sceneName);
         }
     }
 }
