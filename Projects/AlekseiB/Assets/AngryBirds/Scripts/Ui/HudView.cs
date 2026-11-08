@@ -29,8 +29,6 @@ namespace AngryBirds.Ui
         public event Action<LevelOutcome> LevelFinished;
 
         private LevelRuntime _runtime;
-        private int _twoStarScore;
-        private int _threeStarScore;
 
         private void Awake()
         {
@@ -64,8 +62,6 @@ namespace AngryBirds.Ui
         public void Initialize(LevelRuntime runtime, LevelDefinition level)
         {
             _runtime = runtime;
-            _twoStarScore = level.TwoStarScore;
-            _threeStarScore = level.ThreeStarScore;
 
             if (levelLabel != null)
             {
@@ -106,7 +102,7 @@ namespace AngryBirds.Ui
                 scoreLabel.text = "SCORE  " + score;
             }
 
-            int stars = score >= _threeStarScore ? 3 : score >= _twoStarScore ? 2 : score > 0 ? 1 : 0;
+            int stars = _runtime.GetLiveStars();
 
             for (int i = 0; i < liveStars.Length; i++)
             {

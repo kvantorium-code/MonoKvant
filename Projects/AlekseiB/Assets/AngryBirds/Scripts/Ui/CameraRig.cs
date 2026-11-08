@@ -51,6 +51,7 @@ namespace AngryBirds.Ui
             _level = level;
             _focus = DefaultFocus;
             _target = null;
+            _camera.backgroundColor = level.SkyColor;
 
             _runtime.BirdLaunched += OnBirdLaunched;
             _runtime.BirdSettled += OnBirdSettled;

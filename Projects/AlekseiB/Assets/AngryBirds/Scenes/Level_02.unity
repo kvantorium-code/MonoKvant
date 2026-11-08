@@ -463,6 +463,56 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.InputSystem::UnityEngine.InputSystem.InputActionReference
   m_Asset: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_ActionId: 44b200b1-1557-4083-816c-b22cbdf77ddf
+--- !u!1 &388756490
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 388756492}
+  - component: {fileID: 388756491}
+  m_Layer: 0
+  m_Name: GameplayLifetimeScope
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &388756491
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 388756490}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 240f92ba358b0a940acc3ecc18cdb0db, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AngryBirds.Infrastructure.Entry.GameplayLifetimeScope
+  parentReference:
+    TypeName: 
+  autoRun: 1
+  autoInjectGameObjects: []
+  fallbackProjectScope: {fileID: 4578368818729227433, guid: 3932da6d96faedd47abf298f5633badd, type: 3}
+  bootstrap: {fileID: 1471406650}
+--- !u!4 &388756492
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 388756490}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &594596735
 GameObject:
   m_ObjectHideFlags: 0
@@ -813,7 +863,7 @@ MonoBehaviour:
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 64
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -1664,7 +1714,6 @@ GameObject:
   - component: {fileID: 1471406651}
   - component: {fileID: 1471406650}
   - component: {fileID: 1471406649}
-  - component: {fileID: 1471406648}
   m_Layer: 0
   m_Name: Systems
   m_TagString: Untagged
@@ -1672,19 +1721,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1471406648
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1471406647}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ed3199a213e964340ac0310b776e09ff, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::AngryBirds.Infrastructure.Input.GameInput
-  gamepadAimThreshold: 0.25
 --- !u!114 &1471406649
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1720,13 +1756,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e705dfdce9050d64c9b7765c92b3ff60, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AngryBirds.Infrastructure.Bootstrap.GameBootstrap
-  input: {fileID: 1471406648}
   director: {fileID: 1471406649}
   slingshot: {fileID: 1944253447}
   cameraRig: {fileID: 1982469490}
   hud: {fileID: 233859748}
-  sceneNameFormat: Level_{0:00}
-  firstLevelScene: Level_01
+  pointerGrabRadius: 1.75
 --- !u!4 &1471406651
 Transform:
   m_ObjectHideFlags: 0
@@ -2766,7 +2800,7 @@ MonoBehaviour:
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 48
     m_Alignment: 0
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -3380,3 +3414,4 @@ SceneRoots:
   - {fileID: 1951740785}
   - {fileID: 1072635388}
   - {fileID: 1471406651}
+  - {fileID: 388756492}

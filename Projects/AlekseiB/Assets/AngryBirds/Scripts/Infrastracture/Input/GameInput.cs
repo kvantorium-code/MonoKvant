@@ -11,14 +11,12 @@ namespace AngryBirds.Infrastructure.Input
     /// The action map comes from the generated wrapper of
     /// Assets/AngryBirds/Settings/Input/AngryBirdsGameplay.inputactions, so action names
     /// are checked by the compiler instead of by strings.
+    /// Lives on a prefab that the project scope instantiates once and keeps between scenes.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class GameInput : MonoBehaviour
+    public sealed class GameInput : MonoBehaviour, IGameInput
     {
         [SerializeField, Range(0.05f, 0.9f)] private float gamepadAimThreshold = 0.25f;
-
-
-        private AngryBirdsActionScheme _actionScheme;
 
         private AngryBirdsGameplayActions _actions;
         private InputActionMap _map;
@@ -53,8 +51,6 @@ namespace AngryBirds.Infrastructure.Input
 
         private void Awake()
         {
-            _actionScheme = new AngryBirdsActionScheme();
-
             _actions = new AngryBirdsGameplayActions();
             _map = _actions.Gameplay.Get();
 

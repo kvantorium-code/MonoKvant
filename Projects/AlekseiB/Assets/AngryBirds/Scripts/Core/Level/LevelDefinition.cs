@@ -9,7 +9,7 @@ namespace AngryBirds.Core.Level
     /// Data of a single level: where things stand, how many birds the player gets and
     /// which score is needed for two and three stars.
     /// The level contains no logic, it is filled in by the editor and read by
-    /// <see cref="LevelDirector"/> at runtime.
+    /// <see cref="LevelSpawner"/> at runtime.
     /// </summary>
     [CreateAssetMenu(fileName = "Level", menuName = "AngryBirds/Level Definition", order = 0)]
     public sealed class LevelDefinition : ScriptableObject

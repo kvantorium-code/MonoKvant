@@ -145,7 +145,15 @@ namespace AngryBirds.Core.Gameplay
                 SpriteRenderer.enabled = false;
             }
 
+            // The bird no longer takes part in physics. Listeners (camera, level flow) still read its
+            // transform inside the event, Destroy is deferred to the end of the frame so that is safe.
+            foreach (Collider2D collider in GetComponentsInChildren<Collider2D>())
+            {
+                collider.enabled = false;
+            }
+
             Settled?.Invoke(this);
+            Destroy(gameObject);
         }
     }
 }

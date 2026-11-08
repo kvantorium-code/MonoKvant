@@ -10,7 +10,8 @@ using UnityEngine.UI;
 using AngryBirds.Core.Gameplay;
 using AngryBirds.Core.Level;
 using AngryBirds.EditorTools.Art;
-using AngryBirds.Infrastructure;
+using AngryBirds.Infrastructure.Bootstrap;
+using AngryBirds.Infrastructure.Entry;
 using AngryBirds.Infrastructure.Input;
 using AngryBirds.Ui;
 
@@ -30,17 +31,8 @@ namespace AngryBirds.EditorTools.Builder
         private const string MaterialFolder = "Assets/AngryBirds/Settings/Materials";
         private const string PhysicsFolder = "Assets/AngryBirds/Settings/Physics";
         private const string SpriteFolder = "Assets/AngryBirds/Content/Sprites";
+        private const string BootSceneName = "Boot";
         private const string ProjectInputActions = "Assets/AngryBirds/InputSystem_Actions.inputactions";
-
-        [MenuItem("Tools/AngryBirds/4. Build Loader Scene", false, 40)]
-        public static void BuildLoaderScene()
-        {
-            EnsureFolder(SceneFolder);
-            CreateLoaderScene();
-            RegisterLoaderScene();
-            SceneNameGenerator.Generate();
-            Debug.Log("[GameContentBuilder] Loader scene rebuilt.");
-        }
 
         [MenuItem("Tools/AngryBirds/2. Build Game Content", false, 20)]
         public static void BuildAll()
@@ -65,10 +57,11 @@ namespace AngryBirds.EditorTools.Builder
             prefabs = ReloadPrefabs(prefabs);
             levels = ReloadLevels(levels);
 
-            CreateScenes(prefabs, art, bandMaterial, levels);
-            CreateLoaderScene();
+            ProjectLifetimeScope projectScope = CreateInfrastructurePrefabs();
+
+            CreateScenes(prefabs, art, bandMaterial, levels, projectScope);
+            CreateBootScene(projectScope);
             RegisterScenes(levels);
-            SceneNameGenerator.Generate();
 
             Debug.Log("[GameContentBuilder] Game content rebuilt.");
         }
@@ -645,7 +638,47 @@ namespace AngryBirds.EditorTools.Builder
 
         // ---------------------------------------------------------------- scenes
 
-        private static void CreateScenes(Prefabs prefabs, ArtSprites art, Material bandMaterial, List<LevelDefinition> levels)
+        /// <summary>Creates the prefabs of the project scope and returns the scope prefab component.</summary>
+        private static ProjectLifetimeScope CreateInfrastructurePrefabs()
+        {
+            var inputObject = new GameObject("GameInput");
+            inputObject.AddComponent<GameInput>();
+            SavePrefab(inputObject, "GameInput");
+
+            // The input prefab was created in this frame, reload it before it is referenced.
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            var scopeObject = new GameObject("ProjectLifetimeScope");
+            ProjectLifetimeScope scope = scopeObject.AddComponent<ProjectLifetimeScope>();
+
+            new PropSetter(scope)
+                .Ref("gameInputPrefab", LoadComponent<GameInput>(PrefabAssetPath("GameInput")))
+                .Apply();
+
+            SavePrefab(scopeObject, "ProjectLifetimeScope");
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            return LoadComponent<ProjectLifetimeScope>(PrefabAssetPath("ProjectLifetimeScope"));
+        }
+
+        private static void CreateBootScene(ProjectLifetimeScope projectScope)
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            PrefabUtility.InstantiatePrefab(projectScope.gameObject, scene);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene, BootScenePath());
+            AssetDatabase.SaveAssets();
+        }
+
+        private static string BootScenePath()
+        {
+            return $"{SceneFolder}/{BootSceneName}.unity";
+        }
+
+        private static void CreateScenes(Prefabs prefabs, ArtSprites art, Material bandMaterial, List<LevelDefinition> levels, ProjectLifetimeScope projectScope)
         {
             foreach (LevelDefinition level in levels)
             {
@@ -661,9 +694,10 @@ namespace AngryBirds.EditorTools.Builder
                 HudView hud = CreateUi(art, out LevelResultPanel resultPanel);
 
                 var systems = new GameObject("Systems");
-                LevelBootstrap bootstrap = systems.AddComponent<LevelBootstrap>();
+                GameBootstrap bootstrap = systems.AddComponent<GameBootstrap>();
                 LevelDirector director = systems.AddComponent<LevelDirector>();
-                GameInput input = systems.AddComponent<GameInput>();
+                var scopeObject = new GameObject("GameplayLifetimeScope");
+                GameplayLifetimeScope scope = scopeObject.AddComponent<GameplayLifetimeScope>();
 
                 new PropSetter(director)
                     .Ref("level", level)
@@ -679,18 +713,16 @@ namespace AngryBirds.EditorTools.Builder
                     .Float("timeBeforeNextBird", 1f)
                     .Apply();
 
-                new PropSetter(input)
-                    .Float("gamepadAimThreshold", 0.25f)
+                new PropSetter(scope)
+                    .Ref("fallbackProjectScope", projectScope)
+                    .Ref("bootstrap", bootstrap)
                     .Apply();
 
                 new PropSetter(bootstrap)
-                    .Ref("input", input)
                     .Ref("director", director)
                     .Ref("slingshot", slingshot)
                     .Ref("cameraRig", camera.GetComponent<CameraRig>())
                     .Ref("hud", hud)
-                    .Str("sceneNameFormat", "Level_{0:00}")
-                    .Str("firstLevelScene", "Level_01")
                     .Apply();
 
                 new PropSetter(hud)
@@ -707,97 +739,10 @@ namespace AngryBirds.EditorTools.Builder
             // Asset references to project assets (level definitions, prefab components) can be
             // dropped while the newly created assets are still being imported. Reopening the
             // saved scenes and assigning the references again makes the result deterministic.
-            RewireSceneAssetReferences(prefabs, levels);
+            RewireSceneAssetReferences(prefabs, levels, projectScope);
         }
 
-        private static void CreateLoaderScene()
-        {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
-            var canvasGo = new GameObject("Canvas");
-            Canvas canvas = canvasGo.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 1000;
-
-            CanvasScaler scaler = canvasGo.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
-
-            canvasGo.AddComponent<GraphicRaycaster>();
-
-            // The background is a raycast target so clicks cannot reach the scene below.
-            Image background = UiFactory.CreateImage(
-                "Background",
-                canvasGo.transform,
-                Vector2.zero,
-                Vector2.zero,
-                new Color(0.05f, 0.07f, 0.1f, 1f));
-
-            RectTransform backgroundRect = (RectTransform)background.transform;
-            backgroundRect.anchorMin = Vector2.zero;
-            backgroundRect.anchorMax = Vector2.one;
-            backgroundRect.anchoredPosition = Vector2.zero;
-            backgroundRect.sizeDelta = Vector2.zero;
-
-            Text statusLabel = UiFactory.CreateCenteredText(
-                canvasGo.transform,
-                new Vector2(0f, 90f),
-                new Vector2(1600f, 100f),
-                "LOADING...",
-                56,
-                Color.white);
-            statusLabel.name = "StatusLabel";
-
-            // Filled Images only clip their geometry when a sprite is assigned.
-            Sprite barSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
-
-            Image track = UiFactory.CreateImage(
-                "ProgressTrack",
-                canvasGo.transform,
-                new Vector2(0f, -10f),
-                new Vector2(960f, 44f),
-                new Color(0.16f, 0.2f, 0.26f, 1f),
-                false);
-            track.sprite = barSprite;
-
-            Image fill = UiFactory.CreateImage(
-                "ProgressFill",
-                track.transform,
-                Vector2.zero,
-                new Vector2(960f, 44f),
-                new Color(0.25f, 0.8f, 0.35f, 1f),
-                false);
-            fill.sprite = barSprite;
-            fill.type = Image.Type.Filled;
-            fill.fillMethod = Image.FillMethod.Horizontal;
-            fill.fillOrigin = (int)Image.OriginHorizontal.Left;
-            fill.fillAmount = 0f;
-
-            Text progressLabel = UiFactory.CreateCenteredText(
-                canvasGo.transform,
-                new Vector2(0f, -80f),
-                new Vector2(400f, 60f),
-                "0%",
-                34,
-                new Color(1f, 0.92f, 0.6f));
-            progressLabel.name = "ProgressLabel";
-
-            var view = canvasGo.AddComponent<LoadingScreenView>();
-            new PropSetter(view)
-                .Ref("progressFill", fill)
-                .Ref("progressLabel", progressLabel)
-                .Ref("statusLabel", statusLabel)
-                .Apply();
-
-            string path = $"{SceneFolder}/Loader.unity";
-            EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene, path);
-            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
-            AssetDatabase.SaveAssets();
-        }
-
-        private static void RewireSceneAssetReferences(Prefabs prefabs, List<LevelDefinition> levels)
+        private static void RewireSceneAssetReferences(Prefabs prefabs, List<LevelDefinition> levels, ProjectLifetimeScope projectScope)
         {
             foreach (LevelDefinition level in levels)
             {
@@ -818,6 +763,10 @@ namespace AngryBirds.EditorTools.Builder
                     .Ref("woodBlockPrefab", prefabs.Wood)
                     .Ref("glassBlockPrefab", prefabs.Glass)
                     .Ref("stoneBlockPrefab", prefabs.Stone)
+                    .Apply();
+
+                new PropSetter(FindInScene<GameplayLifetimeScope>(scene))
+                    .Ref("fallbackProjectScope", projectScope)
                     .Apply();
 
                 EditorSceneManager.MarkSceneDirty(scene);
@@ -1155,7 +1104,8 @@ namespace AngryBirds.EditorTools.Builder
 
         private static void RegisterScenes(List<LevelDefinition> levels)
         {
-            var scenes = new List<EditorBuildSettingsScene>();
+            // The Boot scene always goes first, the game starts from it.
+            var scenes = new List<EditorBuildSettingsScene> { new EditorBuildSettingsScene(BootScenePath(), true) };
 
             foreach (LevelDefinition level in levels)
             {
@@ -1163,48 +1113,26 @@ namespace AngryBirds.EditorTools.Builder
                 scenes.Add(new EditorBuildSettingsScene(path, true));
             }
 
-            AddSceneIfMissing(scenes, $"{SceneFolder}/Loader.unity");
-
             foreach (EditorBuildSettingsScene existing in EditorBuildSettings.scenes)
             {
-                if (!ContainsScene(scenes, existing.path))
+                bool alreadyAdded = false;
+
+                foreach (EditorBuildSettingsScene scene in scenes)
+                {
+                    if (scene.path == existing.path)
+                    {
+                        alreadyAdded = true;
+                        break;
+                    }
+                }
+
+                if (!alreadyAdded)
                 {
                     scenes.Add(existing);
                 }
             }
 
-            AddSceneIfMissing(scenes, $"{SceneFolder}/boot.unity");
-
             EditorBuildSettings.scenes = scenes.ToArray();
-        }
-
-        private static void RegisterLoaderScene()
-        {
-            var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
-            AddSceneIfMissing(scenes, $"{SceneFolder}/Loader.unity");
-            AddSceneIfMissing(scenes, $"{SceneFolder}/boot.unity");
-            EditorBuildSettings.scenes = scenes.ToArray();
-        }
-
-        private static void AddSceneIfMissing(List<EditorBuildSettingsScene> scenes, string path)
-        {
-            if (!ContainsScene(scenes, path))
-            {
-                scenes.Add(new EditorBuildSettingsScene(path, true));
-            }
-        }
-
-        private static bool ContainsScene(List<EditorBuildSettingsScene> scenes, string path)
-        {
-            foreach (EditorBuildSettingsScene scene in scenes)
-            {
-                if (scene.path == path)
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         // ----------------------------------------------------------------- utils

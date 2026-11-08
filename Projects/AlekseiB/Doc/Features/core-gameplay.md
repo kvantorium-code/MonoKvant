@@ -62,8 +62,9 @@ tools and all visuals are procedural placeholder art that can be replaced file b
 
 - `Tools/AngryBirds/1. Generate Placeholder Art` — writes the procedural sprite set
   (mipmapped, bilinear, uncompressed).
-- `Tools/AngryBirds/2. Build Game Content` — (re)builds prefabs, level definitions and the
-  three level scenes and registers them in the build settings. Running it again is meant
+- `Tools/AngryBirds/2. Build Game Content` — (re)builds prefabs, level definitions, the
+  `Boot` scene and the three level scenes and registers them in the build settings
+  (`Boot` is the first scene, the game starts from it). Running it again is meant
   to reproduce the same result, including keeping asset references valid.
 
 See `Doc/ADR/0001-project-structure-under-assets-angrybirds.md` for the folder layout.

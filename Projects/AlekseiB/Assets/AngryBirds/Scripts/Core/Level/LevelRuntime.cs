@@ -72,8 +72,18 @@ namespace AngryBirds.Core.Level
 
         public event Action<LevelOutcome> Finished;
 
+        /// <summary>The level being played, null when initialized from raw numbers.</summary>
+        public LevelDefinition Level { get; private set; }
+
+        public void Initialize(LevelDefinition level)
+        {
+            Initialize(level.PigCount, level.BirdCount, level.TwoStarScore, level.ThreeStarScore);
+            Level = level;
+        }
+
         public void Initialize(int pigsTotal, int birdsTotal, int twoStarScore, int threeStarScore)
         {
+            Level = null;
             _pigsTotal = pigsTotal;
             _pigsRemaining = pigsTotal;
             _birdsRemaining = birdsTotal;
@@ -164,6 +174,12 @@ namespace AngryBirds.Core.Level
             }
 
             return Score >= _twoStarScore ? 2 : 1;
+        }
+
+        /// <summary>Stars earned by the current score while playing: 0 until the first points, then 1–3.</summary>
+        public int GetLiveStars()
+        {
+            return Score > 0 ? GetStars() : 0;
         }
 
         private bool IsFinished => State == LevelState.Won || State == LevelState.Lost;

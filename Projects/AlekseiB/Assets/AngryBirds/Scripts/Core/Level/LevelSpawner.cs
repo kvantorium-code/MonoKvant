@@ -1,23 +1,21 @@
-using System.Collections;
 using UnityEngine;
 using AngryBirds.Core.Gameplay;
 
 namespace AngryBirds.Core.Level
 {
     /// <summary>
-    /// Builds the level from its <see cref="LevelDefinition"/> and drives the shot flow:
-    /// load a bird, wait for it to settle, load the next one, finish when the pigs are dead
-    /// or the birds ran out.
+    /// Builds the world of a level from its <see cref="LevelDefinition"/>: places the slingshot,
+    /// the ground, the blocks and the pigs under the level root, and forwards their destruction
+    /// to <see cref="LevelRuntime"/>. Everything it creates lives under the root, so a level is
+    /// thrown away together with its scene.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class LevelDirector : MonoBehaviour
+    public sealed class LevelSpawner : MonoBehaviour
     {
-        [SerializeField] private LevelDefinition level;
         [SerializeField] private Slingshot slingshot;
         [SerializeField] private Transform spawnRoot;
 
         [Header("Prefabs")]
-        [SerializeField] private Bird birdPrefab;
         [SerializeField] private Pig pigPrefab;
         [SerializeField] private Block woodBlockPrefab;
         [SerializeField] private Block glassBlockPrefab;
@@ -27,49 +25,19 @@ namespace AngryBirds.Core.Level
         [SerializeField] private Sprite groundSprite;
         [SerializeField, Min(0.5f)] private float groundSegmentWidth = 4f;
 
-        [Header("Flow")]
-        [SerializeField, Min(0f)] private float timeBeforeNextBird = 1f;
-
         private LevelRuntime _runtime;
-        private Coroutine _loadNextBirdRoutine;
 
-        public LevelDefinition Level => level;
-
-        private void OnDestroy()
-        {
-            DetachRuntime();
-        }
-
-        public void Initialize(LevelRuntime runtime)
+        public void Spawn(LevelDefinition level, LevelRuntime runtime)
         {
             _runtime = runtime;
-            _runtime.Initialize(level.PigCount, level.BirdCount, level.TwoStarScore, level.ThreeStarScore);
 
             slingshot.transform.position = level.SlingshotPosition;
 
-            BuildGround();
-            SpawnActors();
-
-            _runtime.BlockDestroyed += OnBlockDestroyed;
-            _runtime.PigDestroyed += OnPigDestroyed;
-            slingshot.BirdLaunched += OnBirdLaunched;
-            LoadNextBird();
+            BuildGround(level);
+            SpawnActors(level);
         }
 
-        private void DetachRuntime()
-        {
-            if (_runtime == null)
-            {
-                return;
-            }
-
-            _runtime.BlockDestroyed -= OnBlockDestroyed;
-            _runtime.PigDestroyed -= OnPigDestroyed;
-            slingshot.BirdLaunched -= OnBirdLaunched;
-            _runtime = null;
-        }
-
-        private void BuildGround()
+        private void BuildGround(LevelDefinition level)
         {
             float width = level.GroundWidth;
             float height = level.GroundHeight;
@@ -104,7 +72,7 @@ namespace AngryBirds.Core.Level
             }
         }
 
-        private void SpawnActors()
+        private void SpawnActors(LevelDefinition level)
         {
             for (int i = 0; i < level.Pigs.Count; i++)
             {
@@ -119,7 +87,7 @@ namespace AngryBirds.Core.Level
 
                 if (prefab == null)
                 {
-                    Debug.LogError($"[LevelDirector] No block prefab is assigned for block kind {spawn.Kind}.", this);
+                    Debug.LogError($"[LevelSpawner] No block prefab is assigned for block kind {spawn.Kind}.", this);
                     continue;
                 }
 
@@ -142,63 +110,11 @@ namespace AngryBirds.Core.Level
             }
         }
 
-        private void LoadNextBird()
-        {
-            if (_runtime == null || _runtime.State == LevelState.Won || _runtime.State == LevelState.Lost)
-            {
-                return;
-            }
-
-            if (_runtime.BirdsRemaining <= 0)
-            {
-                _runtime.NotifyOutOfBirds();
-                return;
-            }
-
-            Bird bird = Instantiate(birdPrefab, slingshot.AnchorPosition, Quaternion.identity, spawnRoot);
-            bird.Settled += OnBirdSettled;
-
-            slingshot.LoadBird(bird);
-        }
-
-        private void OnBirdLaunched(Bird bird)
-        {
-            _runtime.NotifyBirdLaunched(bird);
-        }
-
-        private void OnBirdSettled(Bird bird)
-        {
-            _runtime.NotifyBirdSettled(bird);
-
-            if (_loadNextBirdRoutine == null)
-            {
-                _loadNextBirdRoutine = StartCoroutine(LoadNextBirdAfterDelay());
-            }
-        }
-
-        private IEnumerator LoadNextBirdAfterDelay()
-        {
-            yield return new WaitForSeconds(timeBeforeNextBird);
-            _loadNextBirdRoutine = null;
-
-            if (_runtime.State == LevelState.Won || _runtime.State == LevelState.Lost)
-            {
-                yield break;
-            }
-
-            if (slingshot.HasBird)
-            {
-                yield break;
-            }
-
-            LoadNextBird();
-        }
-
         private void OnPigDepleted(DamageableActor actor)
         {
             if (actor is Pig pig)
             {
-                OnPigDestroyed(pig);
+                _runtime.NotifyPigDestroyed(pig);
             }
         }
 
@@ -206,18 +122,8 @@ namespace AngryBirds.Core.Level
         {
             if (actor is Block block)
             {
-                OnBlockDestroyed(block);
+                _runtime.NotifyBlockDestroyed(block);
             }
-        }
-
-        private void OnPigDestroyed(Pig pig)
-        {
-            _runtime.NotifyPigDestroyed(pig);
-        }
-
-        private void OnBlockDestroyed(Block block)
-        {
-            _runtime.NotifyBlockDestroyed(block);
         }
     }
 }
