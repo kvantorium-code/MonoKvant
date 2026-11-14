@@ -10,7 +10,7 @@ namespace AngryBirds.Infrastructure.Entry
 {
     /// <summary>
     /// Starts the Gameplay scene: takes the level chosen by <see cref="GameplayState"/>, initializes
-    /// the runtime and hands it to the scene parts (spawner, shot flow, aim, camera, HUD).
+    /// the runtime and hands it to the scene parts (spawner, shot flow, aim, camera, HUD controller).
     /// Connects the result and the restart / next commands to the game state machine.
     /// Contains no gameplay rules, it only wires parts together.
     /// </summary>
@@ -25,7 +25,7 @@ namespace AngryBirds.Infrastructure.Entry
         private readonly ShotFlow _shotFlow;
         private readonly AimController _aim;
         private readonly CameraRig _cameraRig;
-        private readonly HudView _hud;
+        private readonly HudController _hud;
 
         private LevelDefinition _level;
         private bool _isLevelFinished;
@@ -41,7 +41,7 @@ namespace AngryBirds.Infrastructure.Entry
             ShotFlow shotFlow,
             AimController aim,
             CameraRig cameraRig,
-            HudView hud)
+            HudController hud)
         {
             _runtime = runtime;
             _levels = levels;
@@ -89,19 +89,16 @@ namespace AngryBirds.Infrastructure.Entry
             _runtime.Finished -= OnLevelFinished;
             _input.RestartPressed -= RestartLevel;
             _input.NextLevelPressed -= OnNextLevelPressed;
-
-            if (_hud != null)
-            {
-                _hud.RestartRequested -= RestartLevel;
-                _hud.NextLevelRequested -= LoadNextLevel;
-            }
+            _hud.RestartRequested -= RestartLevel;
+            _hud.NextLevelRequested -= LoadNextLevel;
         }
 
         private void OnLevelFinished(LevelOutcome outcome)
         {
             _isLevelFinished = true;
+
+            // The result overlay itself is shown by the HUD controller.
             _states.Enter<ResultState, ResultPayload>(new ResultPayload(_level.LevelNumber, outcome));
-            _hud.ShowResult(outcome, outcome.IsWin ? "LEVEL CLEARED" : "TRY AGAIN", _levels.TryGetNext(_level.LevelNumber, out _));
         }
 
         private void OnNextLevelPressed()

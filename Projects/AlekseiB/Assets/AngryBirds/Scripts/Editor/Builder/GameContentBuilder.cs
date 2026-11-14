@@ -73,6 +73,7 @@ namespace AngryBirds.EditorTools.Builder
 
             CreateGameplayScene();
             CreateBootScene();
+            LoaderSceneBuilder.CreateScene();
             RegisterScenes();
 
             // The generated enum has to match the scenes that were just written.
@@ -1220,11 +1221,13 @@ namespace AngryBirds.EditorTools.Builder
         private static void RegisterScenes()
         {
             // The Boot scene always goes first, the game starts from it. The Gameplay scene
-            // plays every level, the levels themselves are data.
+            // plays every level, the levels themselves are data. The Loader scene is the
+            // additive transition curtain shown by GameSceneManager.
             var scenes = new List<EditorBuildSettingsScene>
             {
                 new EditorBuildSettingsScene(BootScenePath(), true),
-                new EditorBuildSettingsScene(GameplayScenePath(), true)
+                new EditorBuildSettingsScene(GameplayScenePath(), true),
+                new EditorBuildSettingsScene(LoaderSceneBuilder.LoaderScenePath, true)
             };
 
             foreach (EditorBuildSettingsScene existing in EditorBuildSettings.scenes)

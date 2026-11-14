@@ -22,8 +22,9 @@ namespace AngryBirds.Ui
         [SerializeField] private Button secondaryButton;
         [SerializeField] private Text secondaryLabel;
 
-        public System.Action PrimaryPressed;
-        public System.Action SecondaryPressed;
+        public event Action PrimaryPressed;
+
+        public event Action SecondaryPressed;
 
         private void Awake()
         {

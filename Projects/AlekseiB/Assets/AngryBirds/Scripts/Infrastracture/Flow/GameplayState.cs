@@ -12,12 +12,12 @@ namespace AngryBirds.Infrastructure.Flow
     {
         public const int FirstLevel = 1;
 
-        private readonly ISceneLoader _sceneLoader;
+        private readonly IGameSceneManager _scenes;
         private readonly ILevelCatalog _levels;
 
-        public GameplayState(ISceneLoader sceneLoader, ILevelCatalog levels)
+        public GameplayState(IGameSceneManager scenes, ILevelCatalog levels)
         {
-            _sceneLoader = sceneLoader;
+            _scenes = scenes;
             _levels = levels;
         }
 
@@ -28,7 +28,8 @@ namespace AngryBirds.Infrastructure.Flow
         {
             Level = _levels.Get(levelNumber) ?? _levels.Get(FirstLevel);
 
-            _sceneLoader.Load(SceneNames.Gameplay);
+            // The state machine is synchronous, the transition runs to completion on its own.
+            _scenes.Load(SceneName.Gameplay);
         }
 
         public void Exit()

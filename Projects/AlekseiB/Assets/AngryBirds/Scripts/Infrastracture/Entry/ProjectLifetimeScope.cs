@@ -27,7 +27,7 @@ namespace AngryBirds.Infrastructure.Entry
         protected override void Configure(IContainerBuilder builder)
         {
             // Infrastructure services.
-            builder.Register<SceneLoader>(Lifetime.Singleton).As<ISceneLoader>();
+            builder.Register<GameSceneManager>(Lifetime.Singleton).As<IGameSceneManager>();
             builder.RegisterComponentInNewPrefab(gameInputPrefab, Lifetime.Singleton)
                 .DontDestroyOnLoad()
                 .As<IGameInput>();

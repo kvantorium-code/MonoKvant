@@ -60,3 +60,4 @@ What decision was made?
 | ADR | Status | Title | Date |
 | --- | --- | --- | --- |
 | 0001 | Accepted | Project structure under Assets/AngryBirds | 2026-09-26 |
+| 0002 | Accepted | Unified scene manager behind DI and View/Controller UI | 2026-11-14 |

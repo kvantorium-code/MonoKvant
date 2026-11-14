@@ -8,7 +8,8 @@ namespace AngryBirds.Ui
     /// <summary>
     /// Level information shown while playing: level name, score, birds left and the live
     /// star rating. Shows the result overlay when the level finishes.
-    /// Renders <see cref="LevelRuntime"/> only, it never changes the state of the level.
+    /// Pure display: it renders the values pushed by <see cref="HudController"/> and reports
+    /// what the player pressed, it knows nothing about the level runtime or services.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class HudView : MonoBehaviour
@@ -26,15 +27,17 @@ namespace AngryBirds.Ui
 
         public event Action NextLevelRequested;
 
-        public event Action<LevelOutcome> LevelFinished;
-
-        private LevelRuntime _runtime;
-
         private void Awake()
         {
             if (restartButton != null)
             {
                 restartButton.onClick.AddListener(OnRestartClicked);
+            }
+
+            if (resultPanel != null)
+            {
+                resultPanel.PrimaryPressed += OnNextLevelClicked;
+                resultPanel.SecondaryPressed += OnRestartClicked;
             }
         }
 
@@ -50,60 +53,34 @@ namespace AngryBirds.Ui
                 resultPanel.PrimaryPressed -= OnNextLevelClicked;
                 resultPanel.SecondaryPressed -= OnRestartClicked;
             }
-
-            if (_runtime != null)
-            {
-                _runtime.ScoreChanged -= OnScoreChanged;
-                _runtime.BirdsChanged -= OnBirdsChanged;
-                _runtime.Finished -= OnRuntimeFinished;
-            }
         }
 
-        public void Initialize(LevelRuntime runtime, LevelDefinition level)
+        public void SetLevelName(string displayName)
         {
-            _runtime = runtime;
-
             if (levelLabel != null)
             {
-                levelLabel.text = level.DisplayName;
+                levelLabel.text = displayName;
             }
-
-            if (resultPanel != null)
-            {
-                resultPanel.PrimaryPressed -= OnNextLevelClicked;
-                resultPanel.SecondaryPressed -= OnRestartClicked;
-                resultPanel.PrimaryPressed += OnNextLevelClicked;
-                resultPanel.SecondaryPressed += OnRestartClicked;
-            }
-
-            _runtime.ScoreChanged += OnScoreChanged;
-            _runtime.BirdsChanged += OnBirdsChanged;
-            _runtime.Finished += OnRuntimeFinished;
-
-            OnScoreChanged(runtime.Score);
-            OnBirdsChanged(runtime.BirdsRemaining);
         }
 
-        public void ShowResult(LevelOutcome outcome, string title, bool hasNextLevel)
-        {
-            if (resultPanel == null)
-            {
-                return;
-            }
-
-            resultPanel.SetButtons(hasNextLevel ? "NEXT LEVEL" : "PLAY AGAIN", "RESTART");
-            resultPanel.Show(outcome, title);
-        }
-
-        private void OnScoreChanged(int score)
+        public void SetScore(int score)
         {
             if (scoreLabel != null)
             {
                 scoreLabel.text = "SCORE  " + score;
             }
+        }
 
-            int stars = _runtime.GetLiveStars();
+        public void SetBirdsRemaining(int remaining)
+        {
+            if (birdsLabel != null)
+            {
+                birdsLabel.text = "BIRDS  " + remaining;
+            }
+        }
 
+        public void SetLiveStars(int stars)
+        {
             for (int i = 0; i < liveStars.Length; i++)
             {
                 if (liveStars[i] == null)
@@ -117,17 +94,15 @@ namespace AngryBirds.Ui
             }
         }
 
-        private void OnBirdsChanged(int remaining)
+        public void ShowResult(LevelOutcome outcome, string title, bool hasNextLevel)
         {
-            if (birdsLabel != null)
+            if (resultPanel == null)
             {
-                birdsLabel.text = "BIRDS  " + remaining;
+                return;
             }
-        }
 
-        private void OnRuntimeFinished(LevelOutcome outcome)
-        {
-            LevelFinished?.Invoke(outcome);
+            resultPanel.SetButtons(hasNextLevel ? "NEXT LEVEL" : "PLAY AGAIN", "RESTART");
+            resultPanel.Show(outcome, title);
         }
 
         private void OnRestartClicked()

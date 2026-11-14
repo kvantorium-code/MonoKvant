@@ -20,7 +20,7 @@ namespace AngryBirds.Infrastructure.Entry
         {
             // A level scene opened directly in the editor already is the screen,
             // running the boot flow would replace it.
-            if (UnitySceneManager.GetActiveScene().name != SceneNames.Boot)
+            if (UnitySceneManager.GetActiveScene().name != SceneName.Boot.ToSceneName())
             {
                 return;
             }

@@ -52,15 +52,17 @@ tools and all visuals are procedural placeholder art that can be replaced file b
 
 ## Scene loading
 
-- The game has two scenes: `Boot` (build index 0, holds the project scope) and `Gameplay`
-  (plays every level).
-- The flow switches scenes through `ISceneLoader` / `SceneLoader`, the only place that calls
-  `UnityEngine.SceneManagement.SceneManager`. `GameplayState` takes the level from the
-  `LevelCatalog` and loads the `Gameplay` scene with it.
-- `Infrastructure.SceneManager` with the generated `SceneName` enum and the `Loader` scene is
-  a separate transition helper (a progress bar over a streamed scene load) that is not part
-  of the game flow yet.
-- The enum is generated from `Assets/AngryBirds/Scenes`; regenerate it with
+- The game has three scenes: `Boot` (build index 0, holds the project scope), `Gameplay`
+  (plays every level) and `Loader` (the transition curtain).
+- The flow switches scenes through `IGameSceneManager` / `GameSceneManager`, the only place
+  that calls `UnityEngine.SceneManagement.SceneManager`. `GameplayState` takes the level
+  from the `LevelCatalog` and loads the `Gameplay` scene with it.
+- A transition is fully additive so the curtain survives it: `Loader` is loaded additively,
+  the target scene streams in with deferred activation while `GameSceneManager` forwards the
+  progress to `ILoadingScreen` (`LoadingScreenView`), then the target activates, the previous
+  content scene and the curtain are unloaded. `Boot` is never unloaded.
+- Scene names come from the generated `SceneName` enum
+  (`Scripts/Infrastracture/Flow/SceneName.cs`); regenerate it with
   `Tools/AngryBirds/3. Generate Scene Names` after adding a scene.
 
 ## Content pipeline
@@ -68,7 +70,7 @@ tools and all visuals are procedural placeholder art that can be replaced file b
 - `Tools/AngryBirds/1. Generate Placeholder Art` — writes the procedural sprite set
   (mipmapped, bilinear, uncompressed).
 - `Tools/AngryBirds/2. Build Game Content` — (re)builds prefabs, level definitions, the level
-  catalog, the `Boot` and `Gameplay` scenes and registers them in the build settings
+  catalog, the `Boot`, `Gameplay` and `Loader` scenes and registers them in the build settings
   (`Boot` is the first scene, the game starts from it). Running it again is meant
   to reproduce the same result, including keeping asset references valid.
 

@@ -40,6 +40,7 @@ namespace AngryBirds.Infrastructure.Entry
             // The runtime state of the level being played. The scene is reloaded for every level,
             // so a fresh instance is created each time.
             builder.Register<LevelRuntime>(Lifetime.Singleton);
+            builder.Register<HudController>(Lifetime.Singleton);
 
             builder.RegisterComponent(levelSpawner);
             builder.RegisterComponent(shotFlow);
