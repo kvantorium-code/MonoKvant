@@ -49,3 +49,4 @@ MonoBehaviour:
   autoRun: 1
   autoInjectGameObjects: []
   gameInputPrefab: {fileID: 6115885297954512616, guid: cc728ab64691d9647bffea1216515486, type: 3}
+  levelCatalog: {fileID: 11400000, guid: dcff98760c12ea2438855aad8bfb7c49, type: 2}

@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d1330d35b3b49744693869314fdcc7b3, type: 3}
+  m_Name: LevelCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::AngryBirds.Core.Level.LevelCatalog
+  levels:
+  - {fileID: 11400000, guid: 831d79a236dba684f9c2c6b295ed9419, type: 2}
+  - {fileID: 11400000, guid: 32774e138718b7e4bbada805b4ad9af1, type: 2}
+  - {fileID: 11400000, guid: ff1571a982c6060449771b4d78c1e858, type: 2}

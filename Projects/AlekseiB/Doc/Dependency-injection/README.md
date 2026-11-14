@@ -26,23 +26,25 @@ New project-wide services are registered in `Configure`, serialized references (
 |---------|----------|-------|
 | `ISceneLoader` -> `SceneLoader` | Singleton | Only place that calls `SceneManager`. |
 | `IGameInput` -> `GameInput` | Singleton | Created from `Prefabs/GameInput.prefab`, `DontDestroyOnLoad`. Consumers must unsubscribe from its events in `OnDestroy`. |
+| `ILevelCatalog` -> `LevelCatalog` | Singleton | The asset `Assets/AngryBirds/Settings/Levels/LevelCatalog.asset`, serialized field `levelCatalog` of the scope. It lists the level definitions in play order. |
 | `IGameStateMachine` -> `GameStateMachine` | Singleton | Resolves states on demand through `IObjectResolver`. |
 | `BootState`, `MainMenuState`, `GameplayState`, `ResultState` | Singleton | Game flow states, entered through `IGameStateMachine.Enter<TState>()` / `Enter<TState, TPayload>()`. |
 | `AppEntryPoint` | Entry point (`IStartable`) | Enters `BootState` when started from the `Boot` scene (does nothing in a level scene opened directly). |
 
 Game flow: `Boot` scene -> `AppEntryPoint` -> `BootState` -> `MainMenuState` -> `GameplayState(levelNumber)` -> `ResultState` -> `GameplayState(...)`.
-`MainMenuState` forwards to the first level until the menu screen exists; `GameplayState` loads the level scene by number and wraps to level 1 after the last level.
+`MainMenuState` forwards to the first level until the menu screen exists; `GameplayState` loads the `Gameplay` scene by number and wraps to level 1 after the last level.
 
 ### Scene level: `GameplayLifetimeScope`
 
-`Scripts/Infrastracture/Entry/GameplayLifetimeScope.cs`, one object per level scene (`Level_01..03`). The parent scope is `ProjectLifetimeScope`.
+`Scripts/Infrastracture/Entry/GameplayLifetimeScope.cs`, one object in the `Gameplay` scene. The parent scope is `ProjectLifetimeScope`.
 If the scene is opened directly in the editor (no `Boot` scene was loaded) the scope instantiates `fallbackProjectScope`
 (the project scope prefab, serialized field) and uses it as the parent, so the level is playable from any scene.
 
 | Binding | Lifetime | Notes |
 |---------|----------|-------|
 | `LevelRuntime` | Singleton in the scene scope | One per level scene, recreated on every scene load. |
-| `GameBootstrap` | Scene object | Injected in the build callback (`Construct(LevelRuntime, IGameInput, IGameStateMachine, ISceneLoader)`), serialized field `bootstrap` of the scope. |
+| `LevelSpawner`, `ShotFlow`, `AimController`, `CameraRig`, `HudView` | Scene objects | Registered with `RegisterComponent`, serialized fields of the scope. |
+| `GameplayEntryPoint` | Entry point (`IStartable`) | Spawns the level of `GameplayState`, wires the HUD and the input, and connects the result / restart / next commands to the game state machine. |
 
 ## Adding a binding
 

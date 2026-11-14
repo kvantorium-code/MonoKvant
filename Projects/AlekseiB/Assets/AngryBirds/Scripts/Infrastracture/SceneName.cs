@@ -5,11 +5,7 @@ namespace AngryBirds.Infrastructure
     public enum SceneName
     {
         Boot = 0,
-        Level_01 = 1,
-        Level_02 = 2,
-        Level_03 = 3,
-        Loader = 4,
-        SampleScene = 5
+        Gameplay = 1
     }
 
     public static class SceneNameExtensions
@@ -18,12 +14,8 @@ namespace AngryBirds.Infrastructure
         {
             switch (sceneName)
             {
-                case SceneName.Boot: return "boot";
-                case SceneName.Level_01: return "Level_01";
-                case SceneName.Level_02: return "Level_02";
-                case SceneName.Level_03: return "Level_03";
-                case SceneName.Loader: return "Loader";
-                case SceneName.SampleScene: return "SampleScene";
+                case SceneName.Boot: return "Boot";
+                case SceneName.Gameplay: return "Gameplay";
                 default: throw new System.ArgumentOutOfRangeException(nameof(sceneName));
             }
         }

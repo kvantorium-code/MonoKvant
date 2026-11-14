@@ -1,6 +1,6 @@
-using UnityEngine.SceneManagement;
 using VContainer.Unity;
 using AngryBirds.Infrastructure.Flow;
+using UnitySceneManager = UnityEngine.SceneManagement.SceneManager;
 
 namespace AngryBirds.Infrastructure.Entry
 {
@@ -20,7 +20,7 @@ namespace AngryBirds.Infrastructure.Entry
         {
             // A level scene opened directly in the editor already is the screen,
             // running the boot flow would replace it.
-            if (SceneManager.GetActiveScene().name != SceneNames.Boot)
+            if (UnitySceneManager.GetActiveScene().name != SceneNames.Boot)
             {
                 return;
             }

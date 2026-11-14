@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
+using UnitySceneManager = UnityEngine.SceneManagement.SceneManager;
 
 namespace AngryBirds.Infrastructure.Flow
 {
@@ -13,7 +13,7 @@ namespace AngryBirds.Infrastructure.Flow
 
         public bool CanLoad(int buildIndex)
         {
-            return buildIndex >= 0 && buildIndex < SceneManager.sceneCountInBuildSettings;
+            return buildIndex >= 0 && buildIndex < UnitySceneManager.sceneCountInBuildSettings;
         }
 
         public void Load(string sceneName)
@@ -24,7 +24,7 @@ namespace AngryBirds.Infrastructure.Flow
                 return;
             }
 
-            SceneManager.LoadScene(sceneName);
+            UnitySceneManager.LoadScene(sceneName);
         }
 
         public void Load(int buildIndex)
@@ -35,7 +35,7 @@ namespace AngryBirds.Infrastructure.Flow
                 return;
             }
 
-            SceneManager.LoadScene(buildIndex);
+            UnitySceneManager.LoadScene(buildIndex);
         }
     }
 }

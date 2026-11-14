@@ -10,7 +10,6 @@ using UnityEngine.UI;
 using AngryBirds.Core.Gameplay;
 using AngryBirds.Core.Level;
 using AngryBirds.EditorTools.Art;
-using AngryBirds.Infrastructure.Bootstrap;
 using AngryBirds.Infrastructure.Entry;
 using AngryBirds.Infrastructure.Input;
 using AngryBirds.Ui;
@@ -18,8 +17,9 @@ using AngryBirds.Ui;
 namespace AngryBirds.EditorTools.Builder
 {
     /// <summary>
-    /// Builds every generated asset of the game: placeholder art, prefabs, level definitions
-    /// and the level scenes, then registers the scenes in the build settings.
+    /// Builds every generated asset of the game: placeholder art, prefabs, level definitions,
+    /// the level catalog and the scenes, then registers the scenes in the build settings.
+    /// The levels are data, they are all played in the single Gameplay scene.
     /// Running the menu item again rebuilds the same result, so the whole content pipeline
     /// is reproducible from a clean clone.
     /// </summary>
@@ -31,8 +31,15 @@ namespace AngryBirds.EditorTools.Builder
         private const string MaterialFolder = "Assets/AngryBirds/Settings/Materials";
         private const string PhysicsFolder = "Assets/AngryBirds/Settings/Physics";
         private const string SpriteFolder = "Assets/AngryBirds/Content/Sprites";
+        private const string LevelCatalogPath = LevelFolder + "/LevelCatalog.asset";
         private const string BootSceneName = "Boot";
-        private const string ProjectInputActions = "Assets/AngryBirds/InputSystem_Actions.inputactions";
+        private const string GameplaySceneName = "Gameplay";
+        private const string ProjectInputActions = "Assets/AngryBirds/Settings/Input/AngryBirdsGameplay.inputactions";
+
+        // The Gameplay scene is level agnostic: the level is data and is spawned at runtime,
+        // so the scene itself starts from these defaults.
+        private static readonly Vector2 DefaultSlingshotPosition = new Vector2(-8f, 0f);
+        private static readonly Color DefaultSkyColor = new Color(0.51f, 0.8f, 0.92f);
 
         [MenuItem("Tools/AngryBirds/2. Build Game Content", false, 20)]
         public static void BuildAll()
@@ -47,26 +54,38 @@ namespace AngryBirds.EditorTools.Builder
             ArtSprites art = LoadArt();
             Material bandMaterial = CreateBandMaterial();
             var physics = CreatePhysicsMaterials();
-            var prefabs = CreatePrefabs(art, bandMaterial, physics);
+            CreatePrefabs(art, bandMaterial, physics);
             List<LevelDefinition> levels = CreateLevelAssets();
 
             // Assets created in this frame are not importable yet, references to them would be
             // dropped when the scenes are saved. Flush the database before building scenes.
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            prefabs = ReloadPrefabs(prefabs);
-            levels = ReloadLevels(levels);
 
-            ProjectLifetimeScope projectScope = CreateInfrastructurePrefabs();
+            // A refresh unloads the asset objects that were loaded before it, so the levels
+            // are loaded again before they are referenced.
+            levels = ReloadLevels();
 
-            CreateScenes(prefabs, art, bandMaterial, levels, projectScope);
-            CreateBootScene(projectScope);
-            RegisterScenes(levels);
+            LevelCatalog catalog = CreateLevelCatalog(levels);
+            CreateInfrastructurePrefabs(catalog);
+
+            DeleteObsoleteLevelScenes();
+
+            CreateGameplayScene();
+            CreateBootScene();
+            RegisterScenes();
+
+            // The generated enum has to match the scenes that were just written.
+            SceneNameGenerator.Generate();
 
             Debug.Log("[GameContentBuilder] Game content rebuilt.");
         }
 
-        private static Prefabs ReloadPrefabs(Prefabs prefabs)
+        /// <summary>
+        /// Loads the prefab components again. An asset refresh or a scene switch unloads the
+        /// asset objects that were loaded before it, so a reference must not be held across one.
+        /// </summary>
+        private static Prefabs ReloadPrefabs()
         {
             return new Prefabs
             {
@@ -81,13 +100,13 @@ namespace AngryBirds.EditorTools.Builder
             };
         }
 
-        private static List<LevelDefinition> ReloadLevels(List<LevelDefinition> levels)
+        private static List<LevelDefinition> ReloadLevels()
         {
             var reloaded = new List<LevelDefinition>();
 
-            foreach (LevelDefinition level in levels)
+            foreach (LevelLayout layout in Layouts())
             {
-                reloaded.Add(LoadAsset<LevelDefinition>(LevelAssetPath(level.LevelNumber)));
+                reloaded.Add(LoadAsset<LevelDefinition>(LevelAssetPath(layout.Number)));
             }
 
             return reloaded;
@@ -601,10 +620,10 @@ namespace AngryBirds.EditorTools.Builder
                     .Int("twoStarScore", layout.TwoStars)
                     .Int("threeStarScore", layout.ThreeStars)
                     .Int("birdCount", layout.Birds)
-                    .Vector("slingshotPosition", new Vector2(-8f, 0f))
+                    .Vector("slingshotPosition", DefaultSlingshotPosition)
                     .Float("groundWidth", 42f)
                     .Float("groundHeight", 0.6f)
-                    .Color("skyColor", new Color(0.51f, 0.8f, 0.92f))
+                    .Color("skyColor", DefaultSkyColor)
                     .Vector("cameraBoundsMin", new Vector2(-20f, -6f))
                     .Vector("cameraBoundsMax", new Vector2(24f, 16f));
 
@@ -638,8 +657,8 @@ namespace AngryBirds.EditorTools.Builder
 
         // ---------------------------------------------------------------- scenes
 
-        /// <summary>Creates the prefabs of the project scope and returns the scope prefab component.</summary>
-        private static ProjectLifetimeScope CreateInfrastructurePrefabs()
+        /// <summary>Creates the prefabs of the project scope.</summary>
+        private static void CreateInfrastructurePrefabs(LevelCatalog catalog)
         {
             var inputObject = new GameObject("GameInput");
             inputObject.AddComponent<GameInput>();
@@ -654,19 +673,56 @@ namespace AngryBirds.EditorTools.Builder
 
             new PropSetter(scope)
                 .Ref("gameInputPrefab", LoadComponent<GameInput>(PrefabAssetPath("GameInput")))
+                .Ref("levelCatalog", catalog)
                 .Apply();
 
             SavePrefab(scopeObject, "ProjectLifetimeScope");
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
-            return LoadComponent<ProjectLifetimeScope>(PrefabAssetPath("ProjectLifetimeScope"));
+            // Fail early when the scope prefab was not created.
+            LoadComponent<ProjectLifetimeScope>(PrefabAssetPath("ProjectLifetimeScope"));
         }
 
-        private static void CreateBootScene(ProjectLifetimeScope projectScope)
+        /// <summary>
+        /// Creates the catalog asset that lists every level in play order. It is the data source
+        /// of <see cref="ILevelCatalog"/>, the project scope serves it to the game flow.
+        /// </summary>
+        private static LevelCatalog CreateLevelCatalog(List<LevelDefinition> levels)
+        {
+            LevelCatalog catalog = AssetDatabase.LoadAssetAtPath<LevelCatalog>(LevelCatalogPath);
+
+            if (catalog == null)
+            {
+                catalog = ScriptableObject.CreateInstance<LevelCatalog>();
+                AssetDatabase.CreateAsset(catalog, LevelCatalogPath);
+            }
+
+            var refs = new Object[levels.Count];
+
+            for (int i = 0; i < levels.Count; i++)
+            {
+                refs[i] = levels[i];
+            }
+
+            new PropSetter(catalog)
+                .Refs("levels", refs)
+                .Apply();
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            return LoadAsset<LevelCatalog>(LevelCatalogPath);
+        }
+
+        private static void CreateBootScene()
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            PrefabUtility.InstantiatePrefab(projectScope.gameObject, scene);
+
+            // The prefab is loaded after the scene was created: a scene switch unloads the
+            // asset objects that were loaded before it.
+            GameObject scopePrefab = LoadAsset<GameObject>(PrefabAssetPath("ProjectLifetimeScope"));
+            PrefabUtility.InstantiatePrefab(scopePrefab, scene);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, BootScenePath());
@@ -678,101 +734,153 @@ namespace AngryBirds.EditorTools.Builder
             return $"{SceneFolder}/{BootSceneName}.unity";
         }
 
-        private static void CreateScenes(Prefabs prefabs, ArtSprites art, Material bandMaterial, List<LevelDefinition> levels, ProjectLifetimeScope projectScope)
+        private static string GameplayScenePath()
         {
-            foreach (LevelDefinition level in levels)
-            {
-                Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-                string sceneName = $"Level_{level.LevelNumber:00}";
-
-                Camera camera = CreateCamera(level);
-                CreateBackdrop(art);
-
-                GameObject spawnRoot = new GameObject("Level");
-                Slingshot slingshot = CreateSlingshot(level, art, bandMaterial, prefabs.Dot);
-                CreateEventSystem();
-                HudView hud = CreateUi(art, out LevelResultPanel resultPanel);
-
-                var systems = new GameObject("Systems");
-                GameBootstrap bootstrap = systems.AddComponent<GameBootstrap>();
-                LevelDirector director = systems.AddComponent<LevelDirector>();
-                var scopeObject = new GameObject("GameplayLifetimeScope");
-                GameplayLifetimeScope scope = scopeObject.AddComponent<GameplayLifetimeScope>();
-
-                new PropSetter(director)
-                    .Ref("level", level)
-                    .Ref("slingshot", slingshot)
-                    .Ref("spawnRoot", spawnRoot.transform)
-                    .Ref("birdPrefab", prefabs.Bird)
-                    .Ref("pigPrefab", prefabs.Pig)
-                    .Ref("woodBlockPrefab", prefabs.Wood)
-                    .Ref("glassBlockPrefab", prefabs.Glass)
-                    .Ref("stoneBlockPrefab", prefabs.Stone)
-                    .Ref("groundSprite", art.Ground)
-                    .Float("groundSegmentWidth", 4f)
-                    .Float("timeBeforeNextBird", 1f)
-                    .Apply();
-
-                new PropSetter(scope)
-                    .Ref("fallbackProjectScope", projectScope)
-                    .Ref("bootstrap", bootstrap)
-                    .Apply();
-
-                new PropSetter(bootstrap)
-                    .Ref("director", director)
-                    .Ref("slingshot", slingshot)
-                    .Ref("cameraRig", camera.GetComponent<CameraRig>())
-                    .Ref("hud", hud)
-                    .Apply();
-
-                new PropSetter(hud)
-                    .Ref("filledStar", art.Star)
-                    .Ref("emptyStar", art.StarEmpty)
-                    .Ref("resultPanel", resultPanel)
-                    .Apply();
-
-                EditorSceneManager.MarkSceneDirty(scene);
-                EditorSceneManager.SaveScene(scene, $"{SceneFolder}/{sceneName}.unity");
-                AssetDatabase.SaveAssets();
-            }
-
-            // Asset references to project assets (level definitions, prefab components) can be
-            // dropped while the newly created assets are still being imported. Reopening the
-            // saved scenes and assigning the references again makes the result deterministic.
-            RewireSceneAssetReferences(prefabs, levels, projectScope);
+            return $"{SceneFolder}/{GameplaySceneName}.unity";
         }
 
-        private static void RewireSceneAssetReferences(Prefabs prefabs, List<LevelDefinition> levels, ProjectLifetimeScope projectScope)
+        private static void CreateGameplayScene()
         {
-            foreach (LevelDefinition level in levels)
-            {
-                string path = $"{SceneFolder}/Level_{level.LevelNumber:00}.unity";
-                Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
-                LevelDirector director = FindInScene<LevelDirector>(scene);
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-                if (director == null)
+            // The assets are loaded after the scene was created: a scene switch or an asset
+            // refresh unloads the asset objects that were loaded before it.
+            Prefabs prefabs = ReloadPrefabs();
+            ArtSprites art = LoadArt();
+            Material bandMaterial = CreateBandMaterial();
+
+            Camera camera = CreateCamera();
+            CreateBackdrop(art);
+
+            GameObject spawnRoot = new GameObject("Level");
+            Slingshot slingshot = CreateSlingshot(art, bandMaterial, prefabs.Dot);
+            CreateEventSystem();
+            HudView hud = CreateUi(art, out LevelResultPanel resultPanel);
+
+            var systems = new GameObject("Systems");
+            LevelSpawner spawner = systems.AddComponent<LevelSpawner>();
+            ShotFlow shotFlow = systems.AddComponent<ShotFlow>();
+            AimController aimController = systems.AddComponent<AimController>();
+            var scopeObject = new GameObject("GameplayLifetimeScope");
+            GameplayLifetimeScope scope = scopeObject.AddComponent<GameplayLifetimeScope>();
+
+            new PropSetter(spawner)
+                .Ref("slingshot", slingshot)
+                .Ref("spawnRoot", spawnRoot.transform)
+                .Ref("pigPrefab", prefabs.Pig)
+                .Ref("woodBlockPrefab", prefabs.Wood)
+                .Ref("glassBlockPrefab", prefabs.Glass)
+                .Ref("stoneBlockPrefab", prefabs.Stone)
+                .Ref("groundSprite", art.Ground)
+                .Float("groundSegmentWidth", 4f)
+                .Apply();
+
+            new PropSetter(shotFlow)
+                .Ref("slingshot", slingshot)
+                .Ref("spawnRoot", spawnRoot.transform)
+                .Ref("birdPrefab", prefabs.Bird)
+                .Float("timeBeforeNextBird", 1f)
+                .Apply();
+
+            new PropSetter(aimController)
+                .Ref("slingshot", slingshot)
+                .Ref("worldCamera", camera)
+                .Float("pointerGrabRadius", 1.75f)
+                .Apply();
+
+            new PropSetter(scope)
+                .Ref("fallbackProjectScope", LoadComponent<ProjectLifetimeScope>(PrefabAssetPath("ProjectLifetimeScope")))
+                .Ref("levelSpawner", spawner)
+                .Ref("shotFlow", shotFlow)
+                .Ref("aimController", aimController)
+                .Ref("cameraRig", camera.GetComponent<CameraRig>())
+                .Ref("hud", hud)
+                .Apply();
+
+            new PropSetter(hud)
+                .Ref("filledStar", art.Star)
+                .Ref("emptyStar", art.StarEmpty)
+                .Ref("resultPanel", resultPanel)
+                .Apply();
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene, GameplayScenePath());
+            AssetDatabase.SaveAssets();
+
+            // Asset references to project assets (prefab components) can be dropped while the
+            // newly created assets are still being imported. Reopening the saved scene and
+            // assigning the references again makes the result deterministic.
+            RewireSceneAssetReferences();
+        }
+
+        private static void RewireSceneAssetReferences()
+        {
+            string path = GameplayScenePath();
+            Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+
+            // The prefabs are loaded after the scene was opened, see ReloadPrefabs.
+            Prefabs prefabs = ReloadPrefabs();
+
+            LevelSpawner spawner = FindInScene<LevelSpawner>(scene);
+
+            if (spawner == null)
+            {
+                Debug.LogError($"[GameContentBuilder] No LevelSpawner found in {path}.");
+                return;
+            }
+
+            new PropSetter(spawner)
+                .Ref("pigPrefab", prefabs.Pig)
+                .Ref("woodBlockPrefab", prefabs.Wood)
+                .Ref("glassBlockPrefab", prefabs.Glass)
+                .Ref("stoneBlockPrefab", prefabs.Stone)
+                .Apply();
+
+            ShotFlow shotFlow = FindInScene<ShotFlow>(scene);
+
+            if (shotFlow != null)
+            {
+                new PropSetter(shotFlow)
+                    .Ref("birdPrefab", prefabs.Bird)
+                    .Apply();
+            }
+
+            GameplayLifetimeScope scope = FindInScene<GameplayLifetimeScope>(scene);
+
+            if (scope != null)
+            {
+                new PropSetter(scope)
+                    .Ref("fallbackProjectScope", LoadComponent<ProjectLifetimeScope>(PrefabAssetPath("ProjectLifetimeScope")))
+                    .Apply();
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>
+        /// Removes the per level scenes of the old content pipeline. The levels are data now and
+        /// are played in the single Gameplay scene.
+        /// </summary>
+        private static void DeleteObsoleteLevelScenes()
+        {
+            foreach (string guid in AssetDatabase.FindAssets("t:Scene", new[] { SceneFolder }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+
+                if (!IsObsoleteLevelScenePath(path))
                 {
-                    Debug.LogError($"[GameContentBuilder] No LevelDirector found in {path}.");
                     continue;
                 }
 
-                new PropSetter(director)
-                    .Ref("level", level)
-                    .Ref("birdPrefab", prefabs.Bird)
-                    .Ref("pigPrefab", prefabs.Pig)
-                    .Ref("woodBlockPrefab", prefabs.Wood)
-                    .Ref("glassBlockPrefab", prefabs.Glass)
-                    .Ref("stoneBlockPrefab", prefabs.Stone)
-                    .Apply();
-
-                new PropSetter(FindInScene<GameplayLifetimeScope>(scene))
-                    .Ref("fallbackProjectScope", projectScope)
-                    .Apply();
-
-                EditorSceneManager.MarkSceneDirty(scene);
-                EditorSceneManager.SaveScene(scene);
-                AssetDatabase.SaveAssets();
+                AssetDatabase.DeleteAsset(path);
             }
+        }
+
+        private static bool IsObsoleteLevelScenePath(string path)
+        {
+            return path != null && path.StartsWith($"{SceneFolder}/Level_", System.StringComparison.Ordinal);
         }
 
         private static T FindInScene<T>(Scene scene) where T : Component
@@ -790,7 +898,7 @@ namespace AngryBirds.EditorTools.Builder
             return null;
         }
 
-        private static Camera CreateCamera(LevelDefinition level)
+        private static Camera CreateCamera()
         {
             var go = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
             go.tag = "MainCamera";
@@ -800,11 +908,17 @@ namespace AngryBirds.EditorTools.Builder
             camera.orthographic = true;
             camera.orthographicSize = 6f;
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = level.SkyColor;
+            camera.backgroundColor = DefaultSkyColor;
             camera.nearClipPlane = 0.3f;
             camera.farClipPlane = 100f;
 
-            go.AddComponent<CameraRig>();
+            CameraRig rig = go.AddComponent<CameraRig>();
+
+            // The rig reads the camera in Awake, so the reference has to be in the scene asset.
+            new PropSetter(rig)
+                .Ref("_camera", camera)
+                .Apply();
+
             return camera;
         }
 
@@ -841,10 +955,10 @@ namespace AngryBirds.EditorTools.Builder
             }
         }
 
-        private static Slingshot CreateSlingshot(LevelDefinition level, ArtSprites art, Material bandMaterial, GameObject dotPrefab)
+        private static Slingshot CreateSlingshot(ArtSprites art, Material bandMaterial, GameObject dotPrefab)
         {
             var root = new GameObject("Slingshot");
-            root.transform.position = new Vector3(level.SlingshotPosition.x, level.SlingshotPosition.y, 0f);
+            root.transform.position = new Vector3(DefaultSlingshotPosition.x, DefaultSlingshotPosition.y, 0f);
 
             SpriteRenderer back = root.AddComponent<SpriteRenderer>();
             back.sprite = art.SlingBack;
@@ -928,14 +1042,15 @@ namespace AngryBirds.EditorTools.Builder
 
             var actions = AssetDatabase.LoadAssetAtPath<InputActionAsset>(ProjectInputActions);
 
-            if (actions == null)
+            // The project asset only holds the gameplay map, the UI actions of the event system
+            // come from the default actions of the Input System.
+            InputActionMap uiMap = actions != null ? actions.FindActionMap("UI", false) : null;
+
+            if (uiMap == null)
             {
                 module.AssignDefaultActions();
                 return;
             }
-
-            module.actionsAsset = actions;
-            InputActionMap uiMap = actions.FindActionMap("UI", true);
 
             module.point = Reference(uiMap, "Point");
             module.leftClick = Reference(uiMap, "Click");
@@ -1102,19 +1217,25 @@ namespace AngryBirds.EditorTools.Builder
 
         // -------------------------------------------------------- build settings
 
-        private static void RegisterScenes(List<LevelDefinition> levels)
+        private static void RegisterScenes()
         {
-            // The Boot scene always goes first, the game starts from it.
-            var scenes = new List<EditorBuildSettingsScene> { new EditorBuildSettingsScene(BootScenePath(), true) };
-
-            foreach (LevelDefinition level in levels)
+            // The Boot scene always goes first, the game starts from it. The Gameplay scene
+            // plays every level, the levels themselves are data.
+            var scenes = new List<EditorBuildSettingsScene>
             {
-                string path = $"{SceneFolder}/Level_{level.LevelNumber:00}.unity";
-                scenes.Add(new EditorBuildSettingsScene(path, true));
-            }
+                new EditorBuildSettingsScene(BootScenePath(), true),
+                new EditorBuildSettingsScene(GameplayScenePath(), true)
+            };
 
             foreach (EditorBuildSettingsScene existing in EditorBuildSettings.scenes)
             {
+                // The per level scenes of the old content pipeline are replaced by the single
+                // Gameplay scene, they are not part of the build anymore.
+                if (IsObsoleteLevelScenePath(existing.path))
+                {
+                    continue;
+                }
+
                 bool alreadyAdded = false;
 
                 foreach (EditorBuildSettingsScene scene in scenes)

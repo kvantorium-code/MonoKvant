@@ -9,6 +9,9 @@ tools and all visuals are procedural placeholder art that can be replaced file b
 - Three generated levels (`Level_01` … `Level_03`), each a data-driven `LevelDefinition`
   asset: pig/block layout, bird count, star score thresholds, slingshot position, ground
   size and camera bounds.
+- The levels are data, they are all played in the single `Gameplay` scene: the `LevelCatalog`
+  asset lists them in play order and `LevelSpawner` spawns the chosen level into the scene,
+  so the scene itself is level agnostic.
 - Structures are made of wood, glass and stone blocks placed by the level definition.
 - A level is won when all pigs are destroyed, and lost when the birds run out first.
 
@@ -49,12 +52,14 @@ tools and all visuals are procedural placeholder art that can be replaced file b
 
 ## Scene loading
 
-- Runtime code switches scenes through `Infrastructure.SceneManager` and the generated
-  `SceneName` enum: `SceneManager.Load(SceneName.Level_02)` or
-  `SceneManager.LoadAsync(SceneName.Level_02)`.
-- Every transition goes through the generated `Loader` scene. It is loaded additively,
-  shows a progress bar while the target scene streams in, and is unloaded automatically
-  when the target scene activates.
+- The game has two scenes: `Boot` (build index 0, holds the project scope) and `Gameplay`
+  (plays every level).
+- The flow switches scenes through `ISceneLoader` / `SceneLoader`, the only place that calls
+  `UnityEngine.SceneManagement.SceneManager`. `GameplayState` takes the level from the
+  `LevelCatalog` and loads the `Gameplay` scene with it.
+- `Infrastructure.SceneManager` with the generated `SceneName` enum and the `Loader` scene is
+  a separate transition helper (a progress bar over a streamed scene load) that is not part
+  of the game flow yet.
 - The enum is generated from `Assets/AngryBirds/Scenes`; regenerate it with
   `Tools/AngryBirds/3. Generate Scene Names` after adding a scene.
 
@@ -62,8 +67,8 @@ tools and all visuals are procedural placeholder art that can be replaced file b
 
 - `Tools/AngryBirds/1. Generate Placeholder Art` — writes the procedural sprite set
   (mipmapped, bilinear, uncompressed).
-- `Tools/AngryBirds/2. Build Game Content` — (re)builds prefabs, level definitions, the
-  `Boot` scene and the three level scenes and registers them in the build settings
+- `Tools/AngryBirds/2. Build Game Content` — (re)builds prefabs, level definitions, the level
+  catalog, the `Boot` and `Gameplay` scenes and registers them in the build settings
   (`Boot` is the first scene, the game starts from it). Running it again is meant
   to reproduce the same result, including keeping asset references valid.
 
